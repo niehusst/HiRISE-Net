@@ -1,0 +1,6 @@
+# pip install 
+matplotlib
+tensorflow
+pillow
+tensorflow_datasets
+sklearn
