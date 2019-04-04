@@ -40,6 +40,9 @@ train_len = tf.cast(len(data_labels) * 0.85, tf.int64) # 3247
 train_images, test_images, train_labels, test_labels = train_test_split(
     data_images, data_labels, test_size=0.15, random_state=666)
 
+# convert training and testing data to tf datasets
+train_dataset = tf.data.Dataset.from_tensor_slices((train_images, train_labels))
+test_dataset = tf.data.Dataset.from_tensor_slices((test_images, test_labels))
 
 # label translations
 class_labels = ['other','crater','dark_dune','streak',
@@ -47,25 +50,24 @@ class_labels = ['other','crater','dark_dune','streak',
 
 
 ###                PREPROCESS THE DATA                 ###
-
 #convert image paths into real images
-def parse_image(filename):
+def parse_image(filename, label):
   im_string = tf.read_file(filename)
   im_decoded = tf.image.decode_jpeg(im_string, channels=1)
   img = tf.cast(im_decoded, tf.float32)
-  return img
+  return img, label
 
-test_images = list(map(parse_image, test_images))
-train_images = list(map(parse_image, train_images))
+train_dataset.map(parse_image)
+test_dataset.map(parse_image)
 
 # convert to 0-1 range
-def normalize(image):
+def normalize(image, label):
   image = tf.cast(image, tf.float32)
   image /= 255
-  return image
+  return image, label
 
-test_images = list(map(normalize, test_images))
-train_images = list(map(normalize, train_images))
+train_dataset.map(normalize)
+test_dataset.map(normalize)
 
 ###             BUILD SHAPE OF THE MODEL              ###
 # increase kernel size and stride??
@@ -90,11 +92,20 @@ BATCH_SIZE = 32
 # model.fit requires train data to be in the shape of [batch, imDim1, imDim2, numChannels]
 #train_images = tf.reshape(train_images, [-1, 227, 227, 1])
 #print("input shape is ", train_images.shape)
+train_dataset = train_dataset.repeat().shuffle(train_len).batch(BATCH_SIZE)
+test_dataset = test_dataset.batch(BATCH_SIZE)
+
+print("testing shape")
+for im, lab in train_dataset.take(1):
+  im = im.numpy()
+  lab = lab.numpy()
+  print("im shape is ", im.shape, " lab shape is ", lab.shape)
+  print("im[0]= ", im[0]) 
 
 print("about to train")
 # train the model on the training data
 num_epochs = 1 #TODO: increase later
-model.fit(train_images, train_labels, epochs=num_epochs, steps_per_epoch=math.ceil(train_len/BATCH_SIZE))
+model.fit(train_dataset, epochs=num_epochs, steps_per_epoch=math.ceil(train_len/BATCH_SIZE))
 
 ###             EVALUATE MODEL ACCURACY               ###
 test_loss, test_accuracy = model.evaluate(test_dataset, steps=math.ceil(test_len/BATCH_SIZE))
