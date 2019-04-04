@@ -57,17 +57,17 @@ def parse_image(filename, label):
   img = tf.cast(im_decoded, tf.float32)
   return img, label
 
-train_dataset.map(parse_image)
-test_dataset.map(parse_image)
+train_dataset = train_dataset.map(parse_image)
+test_dataset = test_dataset.map(parse_image)
 
 # convert to 0-1 range
 def normalize(image, label):
   image = tf.cast(image, tf.float32)
-  image /= 255
+  image /= 255.0
   return image, label
 
-train_dataset.map(normalize)
-test_dataset.map(normalize)
+train_dataset = train_dataset.map(normalize)
+test_dataset = test_dataset.map(normalize)
 
 ###             BUILD SHAPE OF THE MODEL              ###
 # increase kernel size and stride??
@@ -94,13 +94,6 @@ BATCH_SIZE = 32
 #print("input shape is ", train_images.shape)
 train_dataset = train_dataset.repeat().shuffle(train_len).batch(BATCH_SIZE)
 test_dataset = test_dataset.batch(BATCH_SIZE)
-
-print("testing shape")
-for im, lab in train_dataset.take(1):
-  im = im.numpy()
-  lab = lab.numpy()
-  print("im shape is ", im.shape, " lab shape is ", lab.shape)
-  print("im[0]= ", im[0]) 
 
 print("about to train")
 # train the model on the training data
