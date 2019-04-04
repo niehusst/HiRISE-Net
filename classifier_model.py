@@ -65,7 +65,7 @@ def normalize(image):
   return image
 
 test_images = list(map(normalize, test_images))
-train_images = list(map(normalize, test_images))
+train_images = list(map(normalize, train_images))
 
 ###             BUILD SHAPE OF THE MODEL              ###
 # increase kernel size and stride??
@@ -87,11 +87,14 @@ model.compile(optimizer='adam',
 ###                 TRAIN THE MODEL                   ###
 #specify training metadata
 BATCH_SIZE = 32
+# model.fit requires train data to be in the shape of [batch, imDim1, imDim2, numChannels]
+#train_images = tf.reshape(train_images, [-1, 227, 227, 1])
+#print("input shape is ", train_images.shape)
 
+print("about to train")
 # train the model on the training data
 num_epochs = 1 #TODO: increase later
-model.fit(np.array(train_images), np.array(train_labels), epochs=num_epochs, steps_per_epoch=math.ceil(train_len/BATCH_SIZE))
-
+model.fit(train_images, train_labels, epochs=num_epochs, steps_per_epoch=math.ceil(train_len/BATCH_SIZE))
 
 ###             EVALUATE MODEL ACCURACY               ###
 test_loss, test_accuracy = model.evaluate(test_dataset, steps=math.ceil(test_len/BATCH_SIZE))
