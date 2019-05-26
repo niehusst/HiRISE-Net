@@ -4,3 +4,4 @@ tensorflow
 pillow
 tensorflow_datasets
 sklearn
+keras

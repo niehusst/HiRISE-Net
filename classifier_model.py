@@ -10,9 +10,11 @@ import matplotlib
 matplotlib.use('PS') #prevent import error due to venv
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+from PIL import Image
 
 # Imports for dataset separation
 from sklearn.model_selection import train_test_split
+from keras.preprocessing.image import ImageDataGenerator
 
 # Improve progress bar display
 import tqdm
@@ -20,13 +22,14 @@ import tqdm.auto
 tqdm.tqdm = tqdm.auto.tqdm
 
 # allow for dataset iteration. 
-tf.enable_eager_execution() #comment this out if causing errors
+#tf.enable_eager_execution() #comment this out if causing errors
 
 ###       GET THE DATASET AND SOME INFO ABOUT IT       ###
 # get the data into slices
 data_images = []
 data_labels = []
-rel_img_path = 'map-proj/' # add path of folder to image name for later loadinr
+rel_img_path = 'map-proj/' # add path of folder to image name for later loading
+
 # open up the labeled data file
 with open('labels-map-proj.txt') as labels:
   for line in labels:
@@ -35,14 +38,10 @@ with open('labels-map-proj.txt') as labels:
     data_labels.append(int(label))
 
 # divide data into testing and training (total len 3820)
-test_len = tf.cast(len(data_labels) * 0.15, tf.int64)  # 573
-train_len = tf.cast(len(data_labels) * 0.85, tf.int64) # 3247
 train_images, test_images, train_labels, test_labels = train_test_split(
     data_images, data_labels, test_size=0.15, random_state=666)
-
-# convert training and testing data to tf datasets
-train_dataset = tf.data.Dataset.from_tensor_slices((train_images, train_labels))
-test_dataset = tf.data.Dataset.from_tensor_slices((test_images, test_labels))
+test_len = len(test_images)   # 573
+train_len = len(train_images) # 3247
 
 # label translations
 class_labels = ['other','crater','dark_dune','streak',
@@ -50,24 +49,39 @@ class_labels = ['other','crater','dark_dune','streak',
 
 
 ###                PREPROCESS THE DATA                 ###
-#convert image paths into real images
-def parse_image(filename, label):
-  im_string = tf.read_file(filename)
-  im_decoded = tf.image.decode_jpeg(im_string, channels=1)
-  img = tf.cast(im_decoded, tf.float32)
-  return img, label
+#convert image paths into numpy matrices
+def parse_image(filename):
+  img_obj = Image.open(filename)
+  img = np.asarray(img_obj).astype(np.float32)
+  #normalize image to 0-1 range
+  img /= 255.0
+  return img
 
-train_dataset = train_dataset.map(parse_image)
-test_dataset = test_dataset.map(parse_image)
+train_images = np.array(list(map(parse_image, train_images)))
+test_images = np.array(list(map(parse_image, test_images)))
 
-# convert to 0-1 range
-def normalize(image, label):
-  image = tf.cast(image, tf.float32)
-  image /= 255.0
-  return image, label
+# convert labels to one-hot encoding
+def to_one_hot(label):
+  encoding = [0 for _ in range(len(class_labels))]
+  encoding[label] = 1
+  return np.array(encoding).astype(np.float32)
 
-train_dataset = train_dataset.map(normalize)
-test_dataset = test_dataset.map(normalize)
+train_labels = np.array(list(map(to_one_hot, train_labels)))
+test_labels = np.array(list(map(to_one_hot, test_labels)))
+
+# model.fit requires train data to be in the shape of [batch, imDim1, imDim2, numChannels]
+# slap extra dimension on the end of train images so tf will be happy
+train_images = np.reshape(train_images, (-1, 227, 227, 1)) #add 4th dim
+train_labels = np.reshape(train_labels, (-1, 7))
+
+print("shape of training images: {} type {}".format(train_images.shape, train_images.dtype))
+print("shape of training labels: {} type {}".format(train_labels.shape, train_labels.dtype))
+
+# make a generator to train the model with
+generator = ImageDataGenerator(rotation_range=0, zoom_range=0,
+    width_shift_range=0, height_shift_range=0, shear_range=0,
+    horizontal_flip=False, fill_mode="nearest")
+
 
 ###             BUILD SHAPE OF THE MODEL              ###
 # increase kernel size and stride??
@@ -77,31 +91,31 @@ model = tf.keras.Sequential([
   tf.keras.layers.MaxPooling2D((2,2), strides=2),
   tf.keras.layers.Conv2D(64, (3,3), padding='same', activation=tf.nn.relu),
   tf.keras.layers.MaxPooling2D((2,2), strides=2),
+  tf.keras.layers.Flatten(),
   tf.keras.layers.Dense(128, activation=tf.nn.relu),
-  tf.keras.layers.Dense(7, activation=tf.nn.softmax) # final layer with node for each classification
+  tf.keras.layers.Dense(7, activation=tf.nn.softmax), # final layer with node for each classification
+#tf.keras.layers.Reshape((-1,))
 ])
 
-# specify loss functions
+# specify loss and SGD functions
 model.compile(optimizer='adam',
-    loss='sparse_categorical_crossentropy',
+    loss='categorical_crossentropy'),
     metrics=['accuracy'])
+
+# prediciton test
+output = model.predict(np.expand_dims(train_images[0], axis=0), batch_size=1)
+print("Predicted {}  gt {}".format(output[0],train_labels[0]))
 
 ###                 TRAIN THE MODEL                   ###
 #specify training metadata
 BATCH_SIZE = 32
-# model.fit requires train data to be in the shape of [batch, imDim1, imDim2, numChannels]
-#train_images = tf.reshape(train_images, [-1, 227, 227, 1])
-#print("input shape is ", train_images.shape)
-train_dataset = train_dataset.repeat().shuffle(train_len).batch(BATCH_SIZE)
-test_dataset = test_dataset.batch(BATCH_SIZE)
-
 print("about to train")
 # train the model on the training data
-num_epochs = 1 #TODO: increase later
-model.fit(train_dataset, epochs=num_epochs, steps_per_epoch=math.ceil(train_len/BATCH_SIZE))
+num_epochs = 5 
+model.fit_generator(generator.flow(train_images, train_labels, batch_size=BATCH_SIZE), epochs=num_epochs)
 
 ###             EVALUATE MODEL ACCURACY               ###
-test_loss, test_accuracy = model.evaluate(test_dataset, steps=math.ceil(test_len/BATCH_SIZE))
+test_loss, test_accuracy = model.evaluate(test_images, test_labels)
 print("Final loss was {}.\nAccuracy of model was {}".format(test_loss,test_accuracy))
 
 
