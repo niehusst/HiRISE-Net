@@ -73,9 +73,8 @@ test_labels = np.array(list(map(to_one_hot, test_labels)))
 # slap extra dimension on the end of train images so tf will be happy
 train_images = np.reshape(train_images, (-1, 227, 227, 1)) #add 4th dim
 train_labels = np.reshape(train_labels, (-1, 7))
-
-print("shape of training images: {} type {}".format(train_images.shape, train_images.dtype))
-print("shape of training labels: {} type {}".format(train_labels.shape, train_labels.dtype))
+test_images = np.reshape(test_images, (-1, 227, 227, 1))
+test_labels = np.reshape(test_labels, (-1, 7))
 
 # make a generator to train the model with
 generator = ImageDataGenerator(rotation_range=0, zoom_range=0,
@@ -94,17 +93,13 @@ model = tf.keras.Sequential([
   tf.keras.layers.Flatten(),
   tf.keras.layers.Dense(128, activation=tf.nn.relu),
   tf.keras.layers.Dense(7, activation=tf.nn.softmax), # final layer with node for each classification
-#tf.keras.layers.Reshape((-1,))
 ])
 
 # specify loss and SGD functions
 model.compile(optimizer='adam',
-    loss='categorical_crossentropy'),
+    loss='categorical_crossentropy',
     metrics=['accuracy'])
 
-# prediciton test
-output = model.predict(np.expand_dims(train_images[0], axis=0), batch_size=1)
-print("Predicted {}  gt {}".format(output[0],train_labels[0]))
 
 ###                 TRAIN THE MODEL                   ###
 #specify training metadata
