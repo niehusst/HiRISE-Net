@@ -1,6 +1,7 @@
 # HiRISE-Net
 
 A personal project to replicate the results of the "Deep Mars" paper by Wagstaff et al. In this project I build a simple forward feed Convolutional Neural Network (CNN) to classify image from the Mars orbital image (HiRISE) labeled data set.
+Training for 5 epochs with the current model yields about 81% accuracy on the testing data.
 
 #### Contents:
 - map-proj/: Directory containing individual cropped landmark images
